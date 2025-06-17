@@ -5,31 +5,10 @@ app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`)
 })
 
-app.use(express.json());
+const { PrismaClient } = require("./generated/prisma");
+const prisma = new PrismaClient();
 
-let pets = [
-    {
-        id: 0,
-        name: "Fido",
-        species: "Dog",
-        breed: "Dalmatian",
-        age: 3
-    },
-    {
-        id: 1,
-        name: "Millie",
-        species: "Cat",
-        breed: "Persian",
-        age: 1
-    },
-    {
-        id: 2,
-        name: "Elise",
-        species: "Dog",
-        breed: "Cavalier King Charles Spaniel",
-        age: 5
-    }
-]
+app.use(express.json());
 
 app.get("/", (req, res) => {
     res.send(`
@@ -42,15 +21,21 @@ app.get("/", (req, res) => {
         `);
 })
 
-app.get("/pets", (req, res) => {
+app.get("/pets", async (req, res) => {
+    const pets = await prisma.pet.findMany();
+
     res.json(pets);
 })
 
-app.get("/pets/:id", (req, res) => {
+app.get("/pets/:id", async (req, res) => {
 
     const petId = Number(req.params.id);
 
-    const pet = pets.find(pet => pet.id === petId);
+    const pet = await prisma.pet.findUnique({
+        where: {
+            id: petId
+        }
+    })
 
     if (pet) {
         res.json(pet);
@@ -59,42 +44,51 @@ app.get("/pets/:id", (req, res) => {
     }
 })
 
-app.post("/pets", (req, res) => {
+app.post("/pets", async (req, res) => {
 
     const { name, species, breed, age } = req.body;
-    const newPet = {
-        id: pets.length + 1,
-        name: name,
-        species: species,
-        breed: breed,
-        age: age
+
+    if (!name || !species || !breed || !age) {
+        res.status(400).send("All fields are required");
     }
-
-    pets.push(newPet);
-
-    res.status(201).json(newPet);
-})
-
-app.put("/pets/:id", (req, res) => {
-
-    const petId = pets.findIndex(pet => pet.id === Number(req.params.id));
-
-    if (petId !== -1) {
-        pets[petId] = {
-            ...pets[petId],
-            ...req.body
+    
+    await prisma.pet.create({
+        data: {
+            name: name,
+            species: species,
+            breed: breed,
+            age: age
         }
-        res.json(pets[petId]);
-    } else {
-        res.status(404).send("Pet not found");
-    }
+    })
+
+    res.status(201).send();
 })
 
-app.delete("/pets/:id", (req, res) => {
+app.put("/pets/:id", async (req, res) => {
 
     const petId = Number(req.params.id);
 
-    pets = pets.filter(pet => pet.id !== petId);
+    await prisma.pet.update({
+        where: {
+            id: petId
+        },
+        data: {
+            ...req.body
+        }
+    })
+
+    res.status(200).send();
+})
+
+app.delete("/pets/:id", async (req, res) => {
+
+    const petId = Number(req.params.id);
+
+    await prisma.pet.delete({
+        where: {
+            id: petId
+        }
+    })
 
     res.status(204).send();
 })
